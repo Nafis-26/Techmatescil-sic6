@@ -1,0 +1,63 @@
+from machine import Pin, ADC
+import dht
+import time
+import math
+
+# Konfigurasi pin dan konstanta
+DHT_PIN = 14                # Pin DHT11
+LDR_PIN = 34                # Pin LDR (ADC)
+MAX_ADC_READING = 4095
+ADC_REF_VOLTAGE = 3.3       # Tegangan referensi ADC
+REF_RESISTANCE = 470        # Nilai resistor pembagi (Ohm)
+LUX_CALC_SCALAR = 12518931   # Skalar untuk perhitungan lux
+LUX_CALC_EXPONENT = -1.405   # Eksponen untuk perhitungan lux
+
+# Inisialisasi sensor
+dht_sensor = dht.DHT11(Pin(DHT_PIN))
+ldr_adc = ADC(Pin(LDR_PIN))
+ldr_adc.atten(ADC.ATTN_11DB)  # Mengatur rentang pembacaan ADC hingga ~3.3V
+
+while True:
+    # Baca data DHT11
+    try:
+        dht_sensor.measure()
+        temperature = dht_sensor.temperature()  # dalam °C
+        humidity = dht_sensor.humidity()          # dalam %
+    except Exception as e:
+        print("Gagal membaca DHT11:", e)
+        temperature = None
+        humidity = None
+
+    # Baca data LDR
+    raw_data = ldr_adc.read()  # Nilai ADC mentah (0-4095)
+    # Hitung tegangan pada resistor pembagi
+    resistor_voltage = raw_data / MAX_ADC_READING * ADC_REF_VOLTAGE
+    # Tegangan pada LDR (sisa dari ADC_REF_VOLTAGE)
+    ldr_voltage = ADC_REF_VOLTAGE - resistor_voltage
+
+    # Menghindari pembagian dengan nol
+    if resistor_voltage != 0:
+        ldr_resistance = (ldr_voltage / resistor_voltage) * REF_RESISTANCE
+        # Hitung nilai illuminance (lux) berdasarkan perhitungan empiris
+        lux = LUX_CALC_SCALAR * math.pow(ldr_resistance, LUX_CALC_EXPONENT)
+    else:
+        ldr_resistance = None
+        lux = None
+
+    # Tampilkan hasil pembacaan
+    print("Temperature    : {}°C".format(temperature))
+    print("Humidity       : {}%".format(humidity))
+    print("LDR Raw Data   : {}".format(raw_data))
+    print("LDR Voltage    : {:.2f} V".format(ldr_voltage))
+    if ldr_resistance is not None:
+        print("LDR Resistance : {:.2f} Ohm".format(ldr_resistance))
+    else:
+        print("LDR Resistance : Error")
+    if lux is not None:
+        print("LDR Illuminance: {:.2f} lux".format(lux))
+    else:
+        print("LDR Illuminance: Error")
+    print("---\n")
+    
+    # Jeda 30 detik (sesuai timerDelay dari kode asli)
+    time.sleep(30)
