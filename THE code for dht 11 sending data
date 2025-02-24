@@ -1,0 +1,61 @@
+import machine
+import time
+import network
+import dht
+import urequests
+
+# WiFi Credentials
+WIFI_SSID = "uwu"
+WIFI_PASSWORD = "khalidah1"
+
+# Endpoints
+UBIDOTS_TOKEN = "BBUS-79K3WKbNmn8i7PcF2Kt5wW6MEAOKUL"
+UBIDOTS_ENDPOINT = "http://industrial.api.ubidots.com/api/v1.6/devices/esp32"
+FLASK_ENDPOINT = "http://192.168.184.39:5000/save"
+
+# Connect to WiFi
+wlan = network.WLAN(network.STA_IF)
+wlan.active(True)
+wlan.connect(WIFI_SSID, WIFI_PASSWORD)
+
+print("Connecting to WiFi", end="")
+timeout = 15
+while not wlan.isconnected() and timeout > 0:
+    print(".", end="")
+    time.sleep(1)
+    timeout -= 1
+
+if not wlan.isconnected():
+    print("\nFailed to connect to WiFi!")
+    machine.reset()
+else:
+    print("\nWLAN connected!")
+
+# Sensor setup
+sensor = dht.DHT11(machine.Pin(14))
+
+# Main loop
+while True:
+    try:
+        sensor.measure()
+        temp = sensor.temperature()
+        hum = sensor.humidity()
+        print(f"Temp: {temp}°C, Hum: {hum}%")
+
+        ubidotheaders = {"Content-Type": "application/json", "X-Auth-Token": UBIDOTS_TOKEN}
+        data = {"temperature": temp, "humidity": hum}
+
+        response = urequests.post(UBIDOTS_ENDPOINT, json=data, headers=ubidotheaders)
+        print(f"Ubidots Response: {response.status_code} {response.text}")
+        response.close()
+        
+        headers = {"Content-Type": "application/json"}
+        response = urequests.post(FLASK_ENDPOINT, json=data, headers=headers)
+        print(f"Flask Response: {response.status_code} {response.text}")
+        response.close()
+
+    except Exception as e:
+        print(f"Error: {e}")
+        time.sleep(5)
+
+    time.sleep(10)
