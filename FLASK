@@ -1,0 +1,43 @@
+from flask import Flask, request, jsonify
+from pymongo import MongoClient
+
+app = Flask(__name__)
+
+# MongoDB Configuration
+MONGO_URI = "mongodb+srv://ami:ami@ami.nq4xx.mongodb.net/?retryWrites=true&w=majority&appName=ami"
+DB_NAME = "SIC6HSC512"
+COLLECTION_NAME = "ami"
+
+# Initialize MongoDB Client (Added error handling)
+try:
+    client = MongoClient(MONGO_URI)
+    db = client[DB_NAME]
+    collection = db[COLLECTION_NAME]
+    print("Connected to MongoDB successfully!")
+except Exception as e:
+    print(f"Failed to connect to MongoDB: {e}")
+    raise SystemExit  # Stop the application if MongoDB connection fails
+
+@app.route("/save", methods=["POST"])
+def save_data():
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "No data provided."}), 400
+
+        temp = data.get("temperature")
+        hum = data.get("humidity")
+
+        if temp is None or hum is None:  # Fixed: Use temp and hum
+            return jsonify({"error": "Temperature and humidity are required."}), 400
+
+        # Insert data into MongoDB
+        record = {"temperature": temp, "humidity": hum}
+        collection.insert_one(record)
+
+        return jsonify({"message": "Data saved successfully."}), 201
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":  
+    app.run(debug=True, host="0.0.0.0")  
